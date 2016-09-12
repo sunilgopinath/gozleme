@@ -1,8 +1,12 @@
 package main
 
 import (
+	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 
 	"gopkg.in/husobee/vestigo.v1"
 )
@@ -19,7 +23,7 @@ func main() {
 	// Define a POST /welcome/:name where :name
 	// is a URL parameter that will be available
 	// anywhere you have access to the http.Request
-	router.Post("/welcome/:name", PostWelcomeHandler)
+	router.Post("/welcome/", PostWelcomeHandler)
 
 	// the router implements http.Handler
 	// so you just need to feed it into
@@ -31,9 +35,18 @@ func main() {
 
 // PostWelcomeHandler - Is an Implementation of http.HandlerFunc
 func PostWelcomeHandler(w http.ResponseWriter, r *http.Request) {
-	name := vestigo.Param(r, "name") // url params live in the request
+	body, err := ioutil.ReadAll(io.LimitReader(r.Body, 1048576))
+	if err != nil {
+		panic(err)
+	}
+	if err := r.Body.Close(); err != nil {
+		panic(err)
+	}
 	w.WriteHeader(200)
-	w.Write([]byte("welcome " + name + "!"))
+	s := string(body[:])
+	sanitizer := strings.NewReplacer("<payload>", "", "</payload>", "", "&quot;", "\"")
+	fmt.Println(sanitizer.Replace(s))
+	w.Write([]byte(sanitizer.Replace(s)))
 }
 
 // GetWelcomeHandler - Is an Implementation of http.HandlerFunc
