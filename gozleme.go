@@ -1,12 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
+
+	"gopkg.in/mgo.v2"
 
 	"gopkg.in/husobee/vestigo.v1"
 )
@@ -39,14 +42,35 @@ func PostWelcomeHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(err)
 	}
-	if err := r.Body.Close(); err != nil {
+	if err = r.Body.Close(); err != nil {
 		panic(err)
 	}
 	w.WriteHeader(200)
 	s := string(body[:])
 	sanitizer := strings.NewReplacer("<payload>", "", "</payload>", "", "&quot;", "\"")
-	fmt.Println(sanitizer.Replace(s))
-	w.Write([]byte(sanitizer.Replace(s)))
+	sanitized := sanitizer.Replace(s)
+	fmt.Println(sanitized)
+
+	var m map[string]interface{}
+	err = json.Unmarshal([]byte(sanitized), &m)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(m)
+
+	session, err := mgo.Dial("localhost")
+	if err != nil {
+		panic(err)
+	}
+	defer session.Close()
+	session.SetMode(mgo.Monotonic, true)
+	c := session.DB("test").C("jenkins")
+	err = c.Insert(m)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	w.Write([]byte(sanitized))
 }
 
 // GetWelcomeHandler - Is an Implementation of http.HandlerFunc
